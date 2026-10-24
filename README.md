@@ -42,7 +42,7 @@ The application is organized as follows:
 | `templates/`, `static/` | Server-rendered pages and browser assets |
 | `firmware/` | The two Arduino sketches and secret-header examples |
 | `tests/` | Pytest coverage for authentication, inventory, scheduling, robots, and audit/API behavior |
-| `docs/` | Detailed setup and firmware notes |
+| `Docs and Media/` | Detailed setup and firmware notes |
 
 ## Roles
 
@@ -68,7 +68,7 @@ Ward 1, then General Ward 2.
 
 ## Setup
 
-Detailed platform-specific instructions are in [`docs/setup.md`](docs/setup.md).
+Detailed platform-specific instructions are in [`Docs and Media/setup.md`](Docs%20and%20Media/setup.md).
 The short version is:
 
 1. Create and activate a virtual environment.
@@ -103,7 +103,7 @@ For each robot:
 4. Install the required Arduino libraries and select an ESP32 board.
 5. Upload the sketch from its same-named folder.
 
-Never commit `secrets.h`. See [`docs/firmware.md`](docs/firmware.md) for wiring,
+Never commit `secrets.h`. See [`Docs and Media/firmware.md`](Docs%20and%20Media/firmware.md) for wiring,
 sensor behavior, and the firmware/API sequence.
 
 ## Robot API
@@ -157,12 +157,12 @@ behavior:
 
 | Source | Claim | Code or current documentation |
 | --- | --- | --- |
-| `README.md` and `docs/setup.md` | Demo passwords are fixed values | `seed.py` now reads `DEMO_*_PASSWORD` variables or generates passwords at runtime |
+| `README.md` and `Docs and Media/setup.md` | Demo passwords are fixed values | `seed.py` now reads `DEMO_*_PASSWORD` variables or generates passwords at runtime |
 | Legacy `README.md` | 13 acceptance scenarios | There are currently 14 collected pytest functions |
-| Legacy `docs/setup.md` | 14 tests | There are currently 14 collected pytest functions, but they are not the same A–N scenario list |
-| Legacy `docs/setup.md` | Ward URLs use `/room/<code>` | `routes/room_routes.py` registers `/ward/<ward_code>` |
+| Legacy `Docs and Media/setup.md` | 14 tests | There are currently 14 collected pytest functions, but they are not the same A–N scenario list |
+| Legacy `Docs and Media/setup.md` | Ward URLs use `/room/<code>` | `routes/room_routes.py` registers `/ward/<ward_code>` |
 | Legacy `README.md` | Firmware sketches are future integration | The ESP32 API and sketches are present and implemented |
-| Legacy `docs/firmware.md` | Sketches and secrets are at the old root paths and values live in `.ino` files | Sketches are under `firmware/<bot>/`; settings belong in ignored `secrets.h` files |
+| Legacy `Docs and Media/firmware.md` | Sketches and secrets are at the old root paths and values live in `.ino` files | Sketches are under `firmware/<bot>/`; settings belong in ignored `secrets.h` files |
 | Legacy firmware text | Eight-channel IR sensor | Both sketches read two digital inputs: GPIO 13 and GPIO 27 |
 | Legacy firmware sequence | Servo locks at 0 degrees | Both sketches use 45 degrees locked and 90 degrees open |
 | Legacy firmware sequence | Stock is deducted while the order is `READY_FOR_DISPATCH` | `services/order_service.py` deducts stock during the transition to `DISPATCHED` |
