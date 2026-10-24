@@ -1,0 +1,61 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Priority Configuration - Hospital Administration{% endblock %}
+
+{% block admin_content %}
+<div style="margin-bottom: 1.5rem;">
+  <h1 style="font-size: 1.35rem; font-weight: 700;">Ward Priority & Scheduling Hierarchy</h1>
+  <p style="font-size: 0.875rem; color: var(--text-muted);">Configure priority ranking (lower number = higher priority dispatch rank)</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Ward Priority Ranks</h3>
+  </div>
+  <div class="card-body">
+    <div style="background: var(--info-bg); color: #1e3a8a; padding: 0.85rem 1rem; border-radius: var(--radius); margin-bottom: 1.5rem; font-size: 0.875rem;">
+      <strong>Deterministic Scheduling Rules:</strong>
+      <ul style="margin-left: 1.25rem; margin-top: 0.25rem;">
+        <li>Priority 1 orders are always processed before Priority 2 and 3 orders.</li>
+        <li>Ties within the same room priority are broken strictly by creation timestamp (FIFO).</li>
+        <li>Each room must possess a distinct rank number to prevent ambiguous priority conflicts.</li>
+      </ul>
+    </div>
+
+    <form method="POST" action="{{ url_for('admin.priority_configuration') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+        <div class="form-group">
+          <label class="form-label" for="priority_emergency">
+            Emergency Ward / Operation Theatre
+            <span class="badge badge-danger" style="margin-left: 0.5rem;">Life Critical</span>
+          </label>
+          <input type="number" id="priority_emergency" name="priority_emergency" class="form-control" value="{{ priority_emergency }}" min="1" max="10" required>
+          <small style="color: var(--text-muted);">Default: 1 (Highest priority)</small>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="priority_general_1">
+            General Ward 1
+            <span class="badge badge-primary" style="margin-left: 0.5rem;">Ward 1</span>
+          </label>
+          <input type="number" id="priority_general_1" name="priority_general_1" class="form-control" value="{{ priority_general_1 }}" min="1" max="10" required>
+          <small style="color: var(--text-muted);">Default: 2</small>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="priority_general_2">
+            General Ward 2
+            <span class="badge badge-info" style="margin-left: 0.5rem;">Ward 2</span>
+          </label>
+          <input type="number" id="priority_general_2" name="priority_general_2" class="form-control" value="{{ priority_general_2 }}" min="1" max="10" required>
+          <small style="color: var(--text-muted);">Default: 3</small>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Save Priority Configuration</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

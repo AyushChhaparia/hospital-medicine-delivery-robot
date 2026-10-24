@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+
+{% block title %}Central Medicine Room Station - Hospital Dispatch{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="font-size: 1.5rem; font-weight: 700;">Medicine Room Dispatch & Inventory Management</h1>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">
+      Queue Scheduling &bull; Autonomous Robot Assignment &bull; Real-time Stock Deduction
+    </p>
+  </div>
+  <div>
+    <span class="badge badge-primary" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">
+      Role: Medicine Room Manager
+    </span>
+  </div>
+</div>
+
+<!-- Top Summary Cards -->
+<div class="metrics-grid">
+  <div class="metric-card warning-card">
+    <span class="title">Total Pending Orders</span>
+    <span class="value">{{ total_pending }}</span>
+  </div>
+  <div class="metric-card emergency-card">
+    <span class="title">Emergency Orders Waiting</span>
+    <span class="value">{{ emergency_waiting }}</span>
+  </div>
+  <div class="metric-card">
+    <span class="title">Orders Being Prepared</span>
+    <span class="value">{{ orders_preparing }}</span>
+  </div>
+  <div class="metric-card success-card">
+    <span class="title">Robots Available</span>
+    <span class="value">{{ robots_available_count }} / {{ robots|length }}</span>
+  </div>
+  <div class="metric-card">
+    <span class="title">Robots in Delivery</span>
+    <span class="value">{{ robots_in_delivery_count }}</span>
+  </div>
+  <div class="metric-card {% if low_stock_count > 0 %}warning-card{% endif %}">
+    <span class="title">Low / Out-of-Stock</span>
+    <span class="value">{{ low_stock_count }}</span>
+  </div>
+</div>
+
+<!-- Robot Status Panel -->
+<div class="card">
+  <div class="card-header">
+    <h2>Autonomous Delivery Robots (Fleet Telemetry)</h2>
+    <span style="font-size: 0.85rem; color: var(--text-muted);">2-Unit Autonomous Delivery Fleet</span>
+  </div>
+  <div class="card-body">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem;">
+      {% for robot in robots %}
+      <div class="robot-card" style="border-left: 4px solid {% if robot.status == 'AVAILABLE' %}var(--success){% elif robot.status == 'MAINTENANCE' %}var(--danger){% else %}var(--info){% endif %};">
+        <div class="robot-card-header">
+          <div>
+            <strong>{{ robot.display_name }}</strong>
+            <span class="badge {{ robot.status|status_badge }}" style="margin-left: 0.5rem;">{{ robot.status }}</span>
+          </div>
+          <div>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">
+              Battery: <strong>{{ robot.battery_percentage if robot.battery_percentage is not none else 'N/A' }}%</strong>
+            </span>
+          </div>
+        </div>
+
+        <div style="font-size: 0.85rem; margin: 0.5rem 0;">
+          <div>Location: <strong>{{ robot.last_location }}</strong></div>
+          {% if robot.current_order %}
+          <div>Assigned Order: <strong>{{ robot.current_order.order_number }}</strong> &rarr; Destination: <strong>{{ robot.current_order.room_name }}</strong></div>
+          {% else %}
+          <div style="color: var(--text-muted);">No active delivery assignment (Docked in Medicine Room)</div>
+          {% endif %}
+        </div>
+
+        <!-- Manual Simulation / Override Actions -->
+        <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          {% if robot.status in ['RETURNING', 'DELIVERING', 'AWAITING_RECIPIENT'] %}
+          <form method="POST" action="{{ url_for('manager.force_confirm_robot_return', robot_id=robot.id) }}"
+                onsubmit="return confirm('Confirm that {{ robot.robot_code }} has arrived back at the Medicine Room docking station?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-success btn-sm">Confirm Return to Station</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Scheduled Order Queue Table -->
+<div class="card">
+  <div class="card-header">
+    <h2>Priority Scheduled Dispatch Queue</h2>
+    <span style="font-size: 0.85rem; color: var(--text-muted);">
+      Deterministic Scheduling: Emergency (1) &gt; Ward 1 (2) &gt; Ward 2 (3) &bull; FIFO
+    </span>
+  </div>
+  <div class="card-body">
+    {% if active_queue %}
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Pos</th>
+            <th>Order ID</th>
+            <th>Destination</th>
+            <th>Priority</th>
+            <th>Order Time</th>
+            <th>Items</th>
+            <th>Status</th>
+            <th>Assigned Robot</th>
+            <th>Operational Workflow Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in active_queue %}
+          {% set ord = item.order %}
+          <tr style="{% if ord.priority == 1 %}background-color: #fef2f2;{% endif %}">
+            <td>
+              <strong style="font-size: 1.1rem; color: var(--primary);">#{{ item.position }}</strong>
+            </td>
+            <td>
+              <strong>{{ ord.order_number }}</strong>
+              <br>
+              <button type="button" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; margin-top: 0.2rem;"
+                      onclick="openOrderModal({{ ord.id }})">
+                View Details
+              </button>
+            </td>
+            <td>{{ ord.room_name }}</td>
+            <td>
+              <span class="badge {{ ord.priority|priority_badge }}">{{ ord.priority|priority_name }}</span>
+            </td>
+            <td>{{ ord.created_at.strftime('%H:%M:%S') }}</td>
+            <td>{{ ord.total_items_count }} units</td>
+            <td>
+              <span class="badge {{ ord.status|status_badge }}">{{ ord.status }}</span>
+            </td>
+            <td>
+              {% if ord.robot %}
+              <strong>{{ ord.robot.robot_code }}</strong> ({{ ord.robot.display_name }})
+              {% else %}
+              <span style="color: var(--text-light); font-size: 0.8rem;">None</span>
+              {% endif %}
+            </td>
+            <td>
+              <!-- Workflow Action Form based on current status -->
+              <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+
+                {% if ord.status == 'PENDING' %}
+                  <!-- Accept -->
+                  <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="accept">
+                    <button type="submit" class="btn btn-success btn-sm">Accept Order</button>
+                  </form>
+                  <!-- Reject -->
+                  <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}"
+                        onsubmit="return confirm('Reject this order? Reserved stock will be returned.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="reject">
+                    <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                  </form>
+
+                {% elif ord.status == 'ACCEPTED' %}
+                  <!-- Start Preparation -->
+                  <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="prepare">
+                    <button type="submit" class="btn btn-primary btn-sm">Start Preparation</button>
+                  </form>
+
+                {% elif ord.status == 'PREPARING' %}
+                  <!-- Mark Ready for Loading -->
+                  <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="ready_loading">
+                    <button type="submit" class="btn btn-primary btn-sm">Medicines Ready</button>
+                  </form>
+
+                {% elif ord.status == 'READY_FOR_LOADING' %}
+                  {% if not ord.robot_id %}
+                    <!-- Assign Robot Dropdown -->
+                    <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}" style="display: flex; gap: 0.25rem;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="action" value="assign_robot">
+                      <select name="robot_id" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.8rem;" required>
+                        <option value="">Select Robot</option>
+                        {% for r in available_robots %}
+                        <option value="{{ r.id }}">{{ r.robot_code }} ({{ r.status }})</option>
+                        {% endfor %}
+                      </select>
+                      <button type="submit" class="btn btn-primary btn-sm" {% if not available_robots %}disabled title="No robots available"{% endif %}>
+                        Assign
+                      </button>
+                    </form>
+                  {% else %}
+                    <!-- Confirm Loaded into Robot -->
+                    <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="action" value="confirm_loaded">
+                      <button type="submit" class="btn btn-success btn-sm">Confirm Loaded in {{ ord.robot.robot_code }}</button>
+                    </form>
+                  {% endif %}
+
+                {% elif ord.status == 'LOADED' %}
+                  <!-- Confirm Cargo Box Secured -->
+                  <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="secure_box">
+                    <button type="submit" class="btn btn-warning btn-sm">Lock & Secure Cargo Box</button>
+                  </form>
+
+                {% elif ord.status == 'READY_FOR_DISPATCH' %}
+                  <!-- CRITICAL: COMPLETE & DISPATCH BUTTON (DEDUCTS INVENTORY ATOMICALLY) -->
+                  <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}"
+                        onsubmit="return confirmDispatchAction('{{ ord.order_number }}', '{{ ord.robot.display_name }}');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="complete_dispatch">
+                    <button type="submit" class="btn btn-success btn-sm" style="font-weight: 700; padding: 0.45rem 0.8rem;">
+                      &#x2714; Complete & Dispatch Robot
+                    </button>
+                  </form>
+
+                {% endif %}
+
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="text-align: center; color: var(--text-muted); padding: 2rem;">
+      Queue is clear. No active orders waiting for preparation or dispatch.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Active Deliveries & Recent History -->
+<div class="card">
+  <div class="card-header">
+    <h2>In-Transit Deliveries & Recent Cycle Log</h2>
+    <span style="font-size: 0.85rem; color: var(--text-muted);">Simulation Controls for Active Autonomous Missions</span>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Destination</th>
+            <th>Priority</th>
+            <th>Robot</th>
+            <th>Status</th>
+            <th>Timestamps</th>
+            <th>Hardware Simulation / Lifecycle Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ord in recent_orders %}
+          {% if ord.status in ['DISPATCHED', 'IN_TRANSIT', 'AWAITING_RECIPIENT', 'DELIVERED', 'RETURNING', 'RETURNED'] %}
+          <tr>
+            <td><strong>{{ ord.order_number }}</strong></td>
+            <td>{{ ord.room_name }}</td>
+            <td><span class="badge {{ ord.priority|priority_badge }}">{{ ord.priority|priority_name }}</span></td>
+            <td>{{ ord.robot.display_name if ord.robot else 'None' }}</td>
+            <td><span class="badge {{ ord.status|status_badge }}">{{ ord.status }}</span></td>
+            <td style="font-size: 0.8rem; color: var(--text-muted);">
+              <div>Dispatched: {{ ord.dispatched_at.strftime('%H:%M:%S') if ord.dispatched_at else '-' }}</div>
+              <div>Delivered: {{ ord.delivered_at.strftime('%H:%M:%S') if ord.delivered_at else '-' }}</div>
+            </td>
+            <td>
+              <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                {% if ord.status == 'DISPATCHED' %}
+                <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="transit">
+                  <button type="submit" class="btn btn-secondary btn-sm">Simulate: Robot In-Transit</button>
+                </form>
+
+                {% elif ord.status == 'IN_TRANSIT' %}
+                <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="arrive">
+                  <button type="submit" class="btn btn-info btn-sm">Simulate: Arrived at Ward</button>
+                </form>
+
+                {% elif ord.status == 'AWAITING_RECIPIENT' %}
+                <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="delivered">
+                  <button type="submit" class="btn btn-success btn-sm">Confirm Recipient Collection</button>
+                </form>
+
+                {% elif ord.status == 'DELIVERED' %}
+                <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="start_return">
+                  <button type="submit" class="btn btn-secondary btn-sm">Simulate: Returning Trip</button>
+                </form>
+
+                {% elif ord.status == 'RETURNING' %}
+                <form method="POST" action="{{ url_for('manager.order_action', order_id=ord.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="confirm_returned">
+                  <button type="submit" class="btn btn-success btn-sm">&#x2714; Confirm Robot Return</button>
+                </form>
+
+                {% elif ord.status == 'RETURNED' %}
+                <span style="color: var(--success); font-weight: 600; font-size: 0.85rem;">Cycle Complete</span>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Stock Management & Inventory Panel -->
+<div class="card">
+  <div class="card-header">
+    <h2>Medicine Inventory & Inward Stock Reception</h2>
+    <span style="font-size: 0.85rem; color: var(--text-muted);">Stock Breakdown (Physical, Reserved, Available)</span>
+  </div>
+  <div class="card-body">
+    <!-- Inward Stock Form -->
+    <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1.5rem;">
+      <h3 style="font-size: 0.95rem; margin-bottom: 0.75rem;">Receive Incoming Stock Shipment</h3>
+      <form method="POST" action="{{ url_for('manager.receive_stock') }}" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="flex: 2; min-width: 200px;">
+          <label class="form-label">Medicine</label>
+          <select name="medicine_id" class="form-control" required>
+            <option value="">Select Medicine</option>
+            {% for m in medicines %}
+            <option value="{{ m.id }}">{{ m.name }} (Current Physical: {{ m.physical_stock }} {{ m.unit }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="flex: 1; min-width: 120px;">
+          <label class="form-label">Quantity Received</label>
+          <input type="number" name="quantity" class="form-control" min="1" placeholder="e.g. 50" required>
+        </div>
+        <div style="flex: 2; min-width: 200px;">
+          <label class="form-label">Supplier / Batch Reason</label>
+          <input type="text" name="reason" class="form-control" placeholder="Supplier shipment / Batch receipt" required>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary" style="height: 38px;">Record Inward Stock</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Inventory Table -->
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Medicine Name</th>
+            <th>Category</th>
+            <th>Unit</th>
+            <th>Physical Stock</th>
+            <th>Reserved Stock</th>
+            <th>Available Stock</th>
+            <th>Threshold</th>
+            <th>Stock Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for med in medicines %}
+          <tr>
+            <td><strong>{{ med.name }}</strong></td>
+            <td>{{ med.category }}</td>
+            <td>{{ med.unit }}</td>
+            <td><strong>{{ med.physical_stock }}</strong></td>
+            <td style="color: var(--accent);"><strong>{{ med.reserved_quantity }}</strong></td>
+            <td style="color: {% if med.available_quantity == 0 %}var(--danger){% else %}var(--success){% endif %}; font-weight: 700;">
+              {{ med.available_quantity }}
+            </td>
+            <td>{{ med.reorder_threshold }}</td>
+            <td>
+              <span class="badge {{ med.stock_status|status_badge }}">{{ med.stock_status }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Order Details Modal -->
+<div id="orderDetailsModal" class="modal-overlay">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 style="font-size: 1.1rem;">Order Manifest Details: <span id="modal-order-number" style="color: var(--primary);"></span></h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeOrderModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.875rem; margin-bottom: 1rem;">
+        <div>Destination: <strong id="modal-order-room"></strong></div>
+        <div>Priority: <strong id="modal-order-priority"></strong></div>
+        <div>Status: <strong id="modal-order-status"></strong></div>
+        <div>Robot: <strong id="modal-order-robot"></strong></div>
+        <div>Placed At: <span id="modal-order-created"></span></div>
+      </div>
+      <div style="margin-bottom: 1rem; font-size: 0.85rem;">
+        <strong>Notes / Ward Instructions:</strong>
+        <p id="modal-order-notes" style="color: var(--text-muted); background: #f8fafc; padding: 0.5rem; border-radius: 4px; margin-top: 0.25rem;"></p>
+      </div>
+
+      <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem;">Prescribed Medicines Manifest:</h4>
+      <table style="width: 100%; font-size: 0.85rem;">
+        <thead>
+          <tr>
+            <th>Medicine Name</th>
+            <th>Prescribed Quantity</th>
+          </tr>
+        </thead>
+        <tbody id="modal-items-table-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeOrderModal()">Close</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/manager.js') }}"></script>
+{% endblock %}

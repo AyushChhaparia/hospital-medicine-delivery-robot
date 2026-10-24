@@ -1,0 +1,82 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Robot Fleet - Hospital Administration{% endblock %}
+
+{% block admin_content %}
+<div style="margin-bottom: 1.5rem;">
+  <h1 style="font-size: 1.35rem; font-weight: 700;">Autonomous Delivery Fleet Management</h1>
+  <p style="font-size: 0.875rem; color: var(--text-muted);">Manage robots R1 and R2, maintenance schedules, and device status</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Robot Fleet Registry</h3>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Robot Code</th>
+            <th>Display Name</th>
+            <th>Operational Status</th>
+            <th>Current Mission</th>
+            <th>Last Reported Location</th>
+            <th>Battery</th>
+            <th>Active State</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in robots %}
+          <tr>
+            <td><strong>{{ r.robot_code }}</strong></td>
+            <td>{{ r.display_name }}</td>
+            <td><span class="badge {{ r.status|status_badge }}">{{ r.status }}</span></td>
+            <td>
+              {% if r.current_order %}
+              <strong>{{ r.current_order.order_number }}</strong> &rarr; {{ r.current_order.room_name }}
+              {% else %}
+              <span style="color: var(--text-light); font-size: 0.8rem;">Idle / In Medicine Room</span>
+              {% endif %}
+            </td>
+            <td>{{ r.last_location }}</td>
+            <td><strong>{{ r.battery_percentage if r.battery_percentage is not none else 'N/A' }}%</strong></td>
+            <td>
+              <span class="badge {% if r.active %}badge-success{% else %}badge-danger{% endif %}">
+                {{ 'Active' if r.active else 'Inactive' }}
+              </span>
+            </td>
+            <td>
+              <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                <!-- Toggle Active -->
+                <form method="POST" action="{{ url_for('admin.robots_management') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="toggle_active">
+                  <input type="hidden" name="robot_id" value="{{ r.id }}">
+                  <button type="submit" class="btn {% if r.active %}btn-danger{% else %}btn-success{% endif %} btn-sm"
+                          {% if r.current_order_id %}disabled title="Cannot deactivate during mission"{% endif %}>
+                    {{ 'Deactivate' if r.active else 'Activate' }}
+                  </button>
+                </form>
+
+                <!-- Toggle Maintenance -->
+                <form method="POST" action="{{ url_for('admin.robots_management') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="set_maintenance">
+                  <input type="hidden" name="robot_id" value="{{ r.id }}">
+                  <button type="submit" class="btn btn-warning btn-sm"
+                          {% if r.current_order_id %}disabled title="Cannot service during active delivery"{% endif %}>
+                    {{ 'Clear Service' if r.status == 'MAINTENANCE' else 'Set Maintenance' }}
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

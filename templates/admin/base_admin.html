@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="admin-layout">
+  <!-- Admin Navigation Sidebar -->
+  <aside class="admin-sidebar">
+    <div style="padding: 0 0.5rem 1rem 0.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem;">
+      <h3 style="font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+        Administration
+      </h3>
+      <p style="font-size: 0.8rem; color: var(--text-light);">Hospital Operations Console</p>
+    </div>
+
+    <ul class="nav-list">
+      <li>
+        <a href="{{ url_for('admin.overview') }}" class="nav-link {% if request.endpoint == 'admin.overview' %}active{% endif %}">
+          Overview
+        </a>
+      </li>
+      <li>
+        <a href="{{ url_for('admin.users_management') }}" class="nav-link {% if request.endpoint == 'admin.users_management' %}active{% endif %}">
+          Users & Roles
+        </a>
+      </li>
+      <li>
+        <a href="{{ url_for('admin.medicines_management') }}" class="nav-link {% if request.endpoint == 'admin.medicines_management' %}active{% endif %}">
+          Medicine Catalog
+        </a>
+      </li>
+      <li>
+        <a href="{{ url_for('admin.inventory_management') }}" class="nav-link {% if request.endpoint == 'admin.inventory_management' %}active{% endif %}">
+          Inventory & Audits
+        </a>
+      </li>
+      <li>
+        <a href="{{ url_for('admin.orders_management') }}" class="nav-link {% if request.endpoint == 'admin.orders_management' %}active{% endif %}">
+          Orders Management
+        </a>
+      </li>
+      <li>
+        <a href="{{ url_for('admin.robots_management') }}" class="nav-link {% if request.endpoint == 'admin.robots_management' %}active{% endif %}">
+          Robot Fleet (R1/R2)
+        </a>
+      </li>
+      <li>
+        <a href="{{ url_for('admin.priority_configuration') }}" class="nav-link {% if request.endpoint == 'admin.priority_configuration' %}active{% endif %}">
+          Priority Configuration
+        </a>
+      </li>
+      <li>
+        <a href="{{ url_for('admin.audit_logs') }}" class="nav-link {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}">
+          System Audit Logs
+        </a>
+      </li>
+    </ul>
+  </aside>
+
+  <!-- Admin Dynamic Content -->
+  <section class="admin-content">
+    {% block admin_content %}{% endblock %}
+  </section>
+</div>
+{% endblock %}

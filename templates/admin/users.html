@@ -1,0 +1,116 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}User Management - Hospital Administration{% endblock %}
+
+{% block admin_content %}
+<div style="margin-bottom: 1.5rem;">
+  <h1 style="font-size: 1.35rem; font-weight: 700;">User & Role Management</h1>
+  <p style="font-size: 0.875rem; color: var(--text-muted);">Manage ward logins, medicine managers, and administrative accounts</p>
+</div>
+
+<!-- Create New User Form -->
+<div class="card">
+  <div class="card-header">
+    <h3>Create New Staff Account</h3>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('admin.users_management') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="create">
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input type="text" id="username" name="username" class="form-control" placeholder="e.g. ot_staff" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input type="password" id="password" name="password" class="form-control" placeholder="Temporary password" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="role">System Role</label>
+          <select id="role" name="role" class="form-control" required>
+            <option value="">Select Role</option>
+            <option value="emergency">Emergency Ward / OT (Role A)</option>
+            <option value="general_1">General Ward 1 (Role B)</option>
+            <option value="general_2">General Ward 2 (Role C)</option>
+            <option value="medicine_manager">Medicine Room Manager (Role D)</option>
+            <option value="admin">Administrator (Role E)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="room_name">Assigned Room Name</label>
+          <input type="text" id="room_name" name="room_name" class="form-control" placeholder="e.g. Operation Theatre 3" required>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">
+        Create User Account
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Users List Table -->
+<div class="card">
+  <div class="card-header">
+    <h3>Existing Staff Accounts</h3>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Assigned Room</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td><strong>{{ u.username }}</strong></td>
+            <td><span class="badge badge-primary">{{ u.role }}</span></td>
+            <td>{{ u.room_name }}</td>
+            <td>
+              <span class="badge {% if u.active %}badge-success{% else %}badge-danger{% endif %}">
+                {{ 'Active' if u.active else 'Inactive' }}
+              </span>
+            </td>
+            <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+            <td>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <!-- Toggle Active -->
+                <form method="POST" action="{{ url_for('admin.users_management') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="toggle_active">
+                  <input type="hidden" name="user_id" value="{{ u.id }}">
+                  <button type="submit" class="btn {% if u.active %}btn-danger{% else %}btn-success{% endif %} btn-sm">
+                    {{ 'Deactivate' if u.active else 'Activate' }}
+                  </button>
+                </form>
+
+                <!-- Reset Password Inline Form -->
+                <form method="POST" action="{{ url_for('admin.users_management') }}" style="display: flex; gap: 0.25rem;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="reset_password">
+                  <input type="hidden" name="user_id" value="{{ u.id }}">
+                  <input type="password" name="new_password" placeholder="New pwd" required style="width: 100px; padding: 0.2rem; font-size: 0.75rem; border: 1px solid var(--border); border-radius: 4px;">
+                  <button type="submit" class="btn btn-secondary btn-sm">Reset</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

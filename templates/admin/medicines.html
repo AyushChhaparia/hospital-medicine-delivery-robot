@@ -1,0 +1,125 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Medicine Management - Hospital Administration{% endblock %}
+
+{% block admin_content %}
+<div style="margin-bottom: 1.5rem;">
+  <h1 style="font-size: 1.35rem; font-weight: 700;">Medicine Catalog & Configuration</h1>
+  <p style="font-size: 0.875rem; color: var(--text-muted);">Manage pharmaceutical formulary, reorder levels, and availability</p>
+</div>
+
+<!-- Add Medicine Card -->
+<div class="card">
+  <div class="card-header">
+    <h3>Add New Medicine to Formulary</h3>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('admin.medicines_management') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="create">
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div class="form-group">
+          <label class="form-label" for="name">Medicine Generic & Brand Name</label>
+          <input type="text" id="name" name="name" class="form-control" placeholder="e.g. Ondansetron 4mg/2ml" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="category">Category</label>
+          <input type="text" id="category" name="category" class="form-control" placeholder="e.g. Antiemetic" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="unit">Unit of Measure</label>
+          <select id="unit" name="unit" class="form-control" required>
+            <option value="ampoules">ampoules</option>
+            <option value="bottles">bottles</option>
+            <option value="vials">vials</option>
+            <option value="strips">strips</option>
+            <option value="packets">packets</option>
+            <option value="units">units</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="physical_stock">Initial Physical Stock</label>
+          <input type="number" id="physical_stock" name="physical_stock" class="form-control" min="0" value="0" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="reorder_threshold">Reorder Alert Threshold</label>
+          <input type="number" id="reorder_threshold" name="reorder_threshold" class="form-control" min="0" value="10" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="description">Clinical Indications / Usage Notes (Optional)</label>
+        <textarea id="description" name="description" class="form-control" rows="2" placeholder="Brief description for ward reference"></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Add Medicine to Formulary</button>
+    </form>
+  </div>
+</div>
+
+<!-- Medicine Catalog Table -->
+<div class="card">
+  <div class="card-header">
+    <h3>Registered Medicines</h3>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Unit</th>
+            <th>Physical Stock</th>
+            <th>Reserved</th>
+            <th>Available</th>
+            <th>Reorder Alert</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in medicines %}
+          <tr>
+            <td>
+              <strong>{{ m.name }}</strong>
+              {% if m.description %}
+              <div style="font-size: 0.75rem; color: var(--text-muted);">{{ m.description }}</div>
+              {% endif %}
+            </td>
+            <td>{{ m.category }}</td>
+            <td>{{ m.unit }}</td>
+            <td><strong>{{ m.physical_stock }}</strong></td>
+            <td style="color: var(--accent);">{{ m.reserved_quantity }}</td>
+            <td style="color: {% if m.available_quantity == 0 %}var(--danger){% else %}var(--success){% endif %}; font-weight: 700;">
+              {{ m.available_quantity }}
+            </td>
+            <td>&le; {{ m.reorder_threshold }}</td>
+            <td>
+              <span class="badge {{ m.stock_status|status_badge }}">{{ m.stock_status }}</span>
+            </td>
+            <td>
+              <div style="display: flex; gap: 0.35rem;">
+                <form method="POST" action="{{ url_for('admin.medicines_management') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="toggle_active">
+                  <input type="hidden" name="medicine_id" value="{{ m.id }}">
+                  <button type="submit" class="btn {% if m.active %}btn-danger{% else %}btn-success{% endif %} btn-sm">
+                    {{ 'Deactivate' if m.active else 'Activate' }}
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

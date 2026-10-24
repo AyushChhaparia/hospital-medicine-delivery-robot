@@ -1,0 +1,110 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}System Overview - Hospital Administration{% endblock %}
+
+{% block admin_content %}
+<div style="margin-bottom: 1.5rem;">
+  <h1 style="font-size: 1.35rem; font-weight: 700;">Hospital Operations Dashboard</h1>
+  <p style="font-size: 0.875rem; color: var(--text-muted);">Real-time metrics across pharmacy, fleet, and patient wards</p>
+</div>
+
+<!-- Key Performance Metrics Grid -->
+<div class="metrics-grid">
+  <div class="metric-card">
+    <span class="title">Total Medicine Records</span>
+    <span class="value">{{ total_medicines }}</span>
+  </div>
+  <div class="metric-card success-card">
+    <span class="title">Available Units In Stock</span>
+    <span class="value">{{ total_available_units }}</span>
+  </div>
+  <div class="metric-card warning-card">
+    <span class="title">Low Stock Medicines</span>
+    <span class="value">{{ low_stock_medicines }}</span>
+  </div>
+  <div class="metric-card emergency-card">
+    <span class="title">Unavailable Medicines</span>
+    <span class="value">{{ unavailable_medicines }}</span>
+  </div>
+  <div class="metric-card warning-card">
+    <span class="title">Pending Orders</span>
+    <span class="value">{{ orders_pending }}</span>
+  </div>
+  <div class="metric-card">
+    <span class="title">Orders In Progress</span>
+    <span class="value">{{ orders_in_progress }}</span>
+  </div>
+  <div class="metric-card success-card">
+    <span class="title">Completed Orders</span>
+    <span class="value">{{ orders_completed }}</span>
+  </div>
+</div>
+
+<!-- Fleet Status Cards -->
+<div class="card">
+  <div class="card-header">
+    <h3>Delivery Fleet Status</h3>
+  </div>
+  <div class="card-body">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      <div class="robot-card" style="border-left: 4px solid {% if r1.status == 'AVAILABLE' %}var(--success){% else %}var(--info){% endif %};">
+        <div class="robot-card-header">
+          <strong>{{ r1.display_name }} ({{ r1.robot_code }})</strong>
+          <span class="badge {{ r1.status|status_badge }}">{{ r1.status }}</span>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          <div>Active State: <strong>{{ 'Enabled' if r1.active else 'Disabled' }}</strong></div>
+          <div>Location: <strong>{{ r1.last_location }}</strong></div>
+          <div>Battery: <strong>{{ r1.battery_percentage if r1.battery_percentage is not none else 'N/A' }}%</strong></div>
+        </div>
+      </div>
+
+      <div class="robot-card" style="border-left: 4px solid {% if r2.status == 'AVAILABLE' %}var(--success){% else %}var(--info){% endif %};">
+        <div class="robot-card-header">
+          <strong>{{ r2.display_name }} ({{ r2.robot_code }})</strong>
+          <span class="badge {{ r2.status|status_badge }}">{{ r2.status }}</span>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          <div>Active State: <strong>{{ 'Enabled' if r2.active else 'Disabled' }}</strong></div>
+          <div>Location: <strong>{{ r2.last_location }}</strong></div>
+          <div>Battery: <strong>{{ r2.battery_percentage if r2.battery_percentage is not none else 'N/A' }}%</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Audit Logs -->
+<div class="card">
+  <div class="card-header">
+    <h3>Recent System Events & Audit Trail</h3>
+    <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-secondary btn-sm">View Full Audit Log</a>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Responsible User</th>
+            <th>Action</th>
+            <th>Entity</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in recent_audits %}
+          <tr>
+            <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td><strong>{{ log.user.username if log.user else 'System' }}</strong></td>
+            <td><span class="badge badge-secondary">{{ log.action }}</span></td>
+            <td>{{ log.entity_type }} #{{ log.entity_id or '' }}</td>
+            <td>{{ log.details }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

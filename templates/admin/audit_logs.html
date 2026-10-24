@@ -1,0 +1,48 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Audit Logs - Hospital Administration{% endblock %}
+
+{% block admin_content %}
+<div style="margin-bottom: 1.5rem;">
+  <h1 style="font-size: 1.35rem; font-weight: 700;">System Security & Audit Trail</h1>
+  <p style="font-size: 0.875rem; color: var(--text-muted);">Immutable audit log of all system actions, stock deductions, and dispatch events</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Audit Records (Recent {{ logs|length }})</h3>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp (UTC)</th>
+            <th>Responsible User</th>
+            <th>Action Code</th>
+            <th>Entity Type</th>
+            <th>Entity ID</th>
+            <th>Operation Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td style="white-space: nowrap;">{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td>
+              <strong>{{ log.user.username if log.user else 'System' }}</strong>
+            </td>
+            <td>
+              <span class="badge badge-secondary">{{ log.action }}</span>
+            </td>
+            <td>{{ log.entity_type }}</td>
+            <td>{{ log.entity_id or '-' }}</td>
+            <td style="max-width: 400px; font-size: 0.825rem;">{{ log.details }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

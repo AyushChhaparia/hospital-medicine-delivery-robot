@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ward_info.title }} - Hospital Medicine Delivery{% endblock %}
+
+{% block content %}
+<!-- Top Header & Ward Badge -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--text-main);">{{ ward_info.title }}</h1>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">
+      Autonomous Medicine Requisition & Live Delivery Tracking
+    </p>
+  </div>
+  <div>
+    <span class="badge {{ ward_info.badge_class }}" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">
+      {{ ward_info.priority_label }}
+    </span>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="metrics-grid">
+  <div class="metric-card">
+    <span class="title">Available Medicines</span>
+    <span class="value">{{ available_medicines_count }}</span>
+  </div>
+  <div class="metric-card warning-card">
+    <span class="title">Pending Orders</span>
+    <span class="value">{{ pending_orders_count }}</span>
+  </div>
+  <div class="metric-card">
+    <span class="title">Orders In Progress</span>
+    <span class="value">{{ in_progress_count }}</span>
+  </div>
+  <div class="metric-card success-card">
+    <span class="title">Completed Deliveries</span>
+    <span class="value">{{ completed_count }}</span>
+  </div>
+</div>
+
+<!-- Main Ordering Grid -->
+<div class="ordering-grid">
+  <!-- Left Column: Medicine Catalogue -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Medicine Catalogue</h2>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">Real-time Stock Availability</span>
+      </div>
+      <div class="card-body">
+        <!-- Search and Category Filter -->
+        <div class="catalogue-search">
+          <input type="text" id="medicine-search" class="form-control" placeholder="Search medicines by name..." onkeyup="filterMedicines()">
+          <select id="category-filter" class="form-control" style="max-width: 200px;" onchange="filterMedicines()">
+            <option value="">All Categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Medicine List -->
+        <div id="medicine-list">
+          {% for med in medicines %}
+          <div class="medicine-item-card {% if not med.is_available %}out-of-stock{% endif %}"
+               data-name="{{ med.name|lower }}"
+               data-category="{{ med.category }}">
+            <div style="flex: 1; padding-right: 1rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                <strong style="font-size: 1rem;">{{ med.name }}</strong>
+                <span class="badge {{ med.stock_status|status_badge }}">{{ med.stock_status }}</span>
+              </div>
+              <div style="font-size: 0.825rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+                Category: <strong>{{ med.category }}</strong> &bull; Unit: <strong>{{ med.unit }}</strong>
+              </div>
+              {% if med.description %}
+              <div style="font-size: 0.825rem; color: var(--text-light);">
+                {{ med.description }}
+              </div>
+              {% endif %}
+              <div style="font-size: 0.85rem; margin-top: 0.35rem;">
+                Available for Order: <strong>{{ med.available_quantity }} {{ med.unit }}</strong>
+              </div>
+            </div>
+
+            <!-- Action / Add to Cart -->
+            <div>
+              {% if med.is_available %}
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="number" id="qty-{{ med.id }}" class="qty-input" min="1" max="{{ med.available_quantity }}" value="1">
+                <button type="button" class="btn btn-primary btn-sm" onclick="addToCart({{ med.id }}, '{{ med.name }}', '{{ med.unit }}', {{ med.available_quantity }})">
+                  Add to Cart
+                </button>
+              </div>
+              {% else %}
+              <button type="button" class="btn btn-secondary btn-sm" disabled title="Out of Stock">
+                Unavailable
+              </button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Order Cart -->
+  <div>
+    <div class="card" style="position: sticky; top: 80px;">
+      <div class="card-header">
+        <h2>Order Cart</h2>
+        <span class="badge badge-primary"><span id="cart-total-count">0</span> Items</span>
+      </div>
+      <div class="card-body">
+        <div id="cart-empty-message" style="text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.9rem;">
+          Your cart is currently empty.<br>Select medicines from the catalogue to add.
+        </div>
+
+        <div class="table-responsive">
+          <table class="cart-table" style="width: 100%;">
+            <tbody id="cart-items-container">
+              <!-- Cart rows rendered dynamically via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="form-group" style="margin-top: 1rem;">
+          <label class="form-label" for="order-notes">Clinical Notes / Instructions (Optional):</label>
+          <textarea id="order-notes" class="form-control" rows="2" placeholder="e.g. Bed 4 urgent, OT Room 2..."></textarea>
+        </div>
+
+        <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+          <button type="button" id="submit-order-btn" class="btn btn-success btn-lg" disabled
+                  onclick="submitOrderWithConfirmation('{{ ward_code }}', '{{ csrf_token() }}')">
+            Place Medicine Order
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="clearCart()">
+            Clear Cart
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Section: Ward Order History & Live Delivery Status -->
+<div class="card">
+  <div class="card-header">
+    <h2>Requisition History & Delivery Tracking</h2>
+    <span style="font-size: 0.85rem; color: var(--text-muted);">Orders submitted by this room</span>
+  </div>
+  <div class="card-body">
+    {% if orders %}
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Order Number</th>
+            <th>Submission Time</th>
+            <th>Requested Medicines</th>
+            <th>Items</th>
+            <th>Priority</th>
+            <th>Assigned Robot</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ord in orders %}
+          <tr>
+            <td><strong>{{ ord.order_number }}</strong></td>
+            <td>{{ ord.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td style="max-width: 250px;">
+              <small>{{ ord.items_summary }}</small>
+            </td>
+            <td>{{ ord.total_items_count }}</td>
+            <td>
+              <span class="badge {{ ord.priority|priority_badge }}">{{ ord.priority|priority_name }}</span>
+            </td>
+            <td>
+              {% if ord.robot %}
+              <strong>{{ ord.robot.display_name }}</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Location: {{ ord.robot.last_location }}</div>
+              {% else %}
+              <span style="color: var(--text-light);">&mdash; Pending Assignment &mdash;</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge {{ ord.status|status_badge }}">{{ ord.status }}</span>
+            </td>
+            <td>
+              {% if ord.status == 'PENDING' %}
+              <form method="POST" action="{{ url_for('room.cancel_ward_order', ward_code=ward_code, order_id=ord.id) }}"
+                    onsubmit="return confirm('Cancel this pending order? Reserved stock will be released.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="reason" value="Cancelled by ward staff">
+                <button type="submit" class="btn btn-danger btn-sm">Cancel</button>
+              </form>
+              {% else %}
+              <span style="color: var(--text-light); font-size: 0.8rem;">Locked</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+      No orders placed yet. Add items to your cart above to place your first medicine delivery order.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

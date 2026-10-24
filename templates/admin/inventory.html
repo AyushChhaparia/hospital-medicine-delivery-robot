@@ -1,0 +1,124 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Inventory & Transactions - Hospital Administration{% endblock %}
+
+{% block admin_content %}
+<div style="margin-bottom: 1.5rem;">
+  <h1 style="font-size: 1.35rem; font-weight: 700;">Pharmacy Inventory & Transaction Audits</h1>
+  <p style="font-size: 0.875rem; color: var(--text-muted);">Stock adjustments, reservation monitoring, and immutable ledger</p>
+</div>
+
+<!-- Stock Adjustment Form -->
+<div class="card">
+  <div class="card-header">
+    <h3>Manual Stock Adjustment</h3>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('admin.inventory_management') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: flex-end;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">Medicine</label>
+          <select name="medicine_id" class="form-control" required>
+            <option value="">Select Medicine</option>
+            {% for m in medicines %}
+            <option value="{{ m.id }}">{{ m.name }} (Current Physical: {{ m.physical_stock }} {{ m.unit }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">Quantity Adjustment (+/-)</label>
+          <input type="number" name="quantity_change" class="form-control" placeholder="e.g. +20 or -5" required>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">Official Reason / Justification</label>
+          <input type="text" name="reason" class="form-control" placeholder="e.g. Damaged ampoule disposal, Stock count audit" required>
+        </div>
+
+        <div>
+          <button type="submit" class="btn btn-primary" style="height: 38px;">Apply Adjustment</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Current Stock Breakdown -->
+<div class="card">
+  <div class="card-header">
+    <h3>Stock Breakdown</h3>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Medicine</th>
+            <th>Category</th>
+            <th>Physical Stock</th>
+            <th>Reserved Stock</th>
+            <th>Available Stock</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in medicines %}
+          <tr>
+            <td><strong>{{ m.name }}</strong></td>
+            <td>{{ m.category }}</td>
+            <td><strong>{{ m.physical_stock }} {{ m.unit }}</strong></td>
+            <td style="color: var(--accent);">{{ m.reserved_quantity }} {{ m.unit }}</td>
+            <td style="color: {% if m.available_quantity == 0 %}var(--danger){% else %}var(--success){% endif %}; font-weight: 700;">
+              {{ m.available_quantity }} {{ m.unit }}
+            </td>
+            <td><span class="badge {{ m.stock_status|status_badge }}">{{ m.stock_status }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory Transaction Ledger -->
+<div class="card">
+  <div class="card-header">
+    <h3>Inventory Transaction History (Audit Trail)</h3>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Medicine</th>
+            <th>Transaction Type</th>
+            <th>Quantity Change</th>
+            <th>Related Order</th>
+            <th>Responsible User</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in transactions %}
+          <tr>
+            <td>{{ tx.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td><strong>{{ tx.medicine.name if tx.medicine else 'Unknown' }}</strong></td>
+            <td><span class="badge badge-secondary">{{ tx.transaction_type }}</span></td>
+            <td style="font-weight: 700; color: {% if tx.quantity_change > 0 %}var(--success){% else %}var(--danger){% endif %};">
+              {{ '%+d' % tx.quantity_change }} {{ tx.medicine.unit if tx.medicine else '' }}
+            </td>
+            <td>{{ tx.order.order_number if tx.order else '-' }}</td>
+            <td><strong>{{ tx.user.username if tx.user else 'System' }}</strong></td>
+            <td>{{ tx.reason }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

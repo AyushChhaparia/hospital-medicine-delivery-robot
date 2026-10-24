@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Hospital Medicine Delivery System{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <!-- Navigation Header -->
+  <header class="navbar">
+    <a href="{{ url_for('auth.index') }}" class="navbar-brand">
+      <div class="logo-icon">&#x271A;</div>
+      <span>Hospital Medicine Delivery System</span>
+    </a>
+
+    {% if current_user.is_authenticated %}
+    <div class="navbar-actions">
+      <div class="user-badge">
+        <span>Room:</span>
+        <strong>{{ current_user.room_name }}</strong>
+        <span style="color: #cbd5e1;">|</span>
+        <span>User:</span>
+        <strong>{{ current_user.username }}</strong>
+      </div>
+
+      {% if current_user.role == 'admin' %}
+      <a href="{{ url_for('admin.overview') }}" class="btn btn-secondary btn-sm">Admin Panel</a>
+      {% elif current_user.role == 'medicine_manager' %}
+      <a href="{{ url_for('manager.dashboard') }}" class="btn btn-secondary btn-sm">Manager Station</a>
+      {% endif %}
+
+      <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary btn-sm">Logout</a>
+    </div>
+    {% endif %}
+  </header>
+
+  <!-- Flash Messages -->
+  <div class="main-container" style="margin-bottom: 0;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <!-- Main Content Block -->
+  <main class="main-container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

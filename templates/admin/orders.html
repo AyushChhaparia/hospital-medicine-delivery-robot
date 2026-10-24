@@ -1,0 +1,114 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}Orders Management - Hospital Administration{% endblock %}
+
+{% block admin_content %}
+<div style="margin-bottom: 1.5rem;">
+  <h1 style="font-size: 1.35rem; font-weight: 700;">Hospital Order Records</h1>
+  <p style="font-size: 0.875rem; color: var(--text-muted);">Comprehensive log of all requisition orders across hospital wards</p>
+</div>
+
+<!-- Filters -->
+<div class="card">
+  <div class="card-body" style="padding: 1rem;">
+    <form method="GET" action="{{ url_for('admin.orders_management') }}" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+      <div style="flex: 1; min-width: 150px;">
+        <label class="form-label">Filter by Ward / Room</label>
+        <select name="room" class="form-control">
+          <option value="">All Rooms</option>
+          {% for r in rooms %}
+          <option value="{{ r }}" {% if selected_room == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="flex: 1; min-width: 150px;">
+        <label class="form-label">Filter by Status</label>
+        <select name="status" class="form-control">
+          <option value="">All Statuses</option>
+          <option value="PENDING" {% if selected_status == 'PENDING' %}selected{% endif %}>PENDING</option>
+          <option value="ACCEPTED" {% if selected_status == 'ACCEPTED' %}selected{% endif %}>ACCEPTED</option>
+          <option value="PREPARING" {% if selected_status == 'PREPARING' %}selected{% endif %}>PREPARING</option>
+          <option value="DISPATCHED" {% if selected_status == 'DISPATCHED' %}selected{% endif %}>DISPATCHED</option>
+          <option value="IN_TRANSIT" {% if selected_status == 'IN_TRANSIT' %}selected{% endif %}>IN_TRANSIT</option>
+          <option value="DELIVERED" {% if selected_status == 'DELIVERED' %}selected{% endif %}>DELIVERED</option>
+          <option value="RETURNED" {% if selected_status == 'RETURNED' %}selected{% endif %}>RETURNED</option>
+          <option value="CANCELLED" {% if selected_status == 'CANCELLED' %}selected{% endif %}>CANCELLED</option>
+          <option value="REJECTED" {% if selected_status == 'REJECTED' %}selected{% endif %}>REJECTED</option>
+        </select>
+      </div>
+
+      <div style="flex: 1; min-width: 150px;">
+        <label class="form-label">Filter by Priority</label>
+        <select name="priority" class="form-control">
+          <option value="">All Priorities</option>
+          <option value="1" {% if selected_priority == '1' %}selected{% endif %}>Priority 1 (Emergency)</option>
+          <option value="2" {% if selected_priority == '2' %}selected{% endif %}>Priority 2 (Ward 1)</option>
+          <option value="3" {% if selected_priority == '3' %}selected{% endif %}>Priority 3 (Ward 2)</option>
+        </select>
+      </div>
+
+      <div>
+        <button type="submit" class="btn btn-primary" style="height: 38px;">Apply Filters</button>
+        <a href="{{ url_for('admin.orders_management') }}" class="btn btn-secondary" style="height: 38px;">Reset</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Orders Table -->
+<div class="card">
+  <div class="card-header">
+    <h3>All Requisition Orders ({{ orders|length }})</h3>
+  </div>
+  <div class="card-body">
+    {% if orders %}
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Order Number</th>
+            <th>Room</th>
+            <th>Priority</th>
+            <th>Items Manifest</th>
+            <th>Robot</th>
+            <th>Status</th>
+            <th>Created At</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ord in orders %}
+          <tr>
+            <td><strong>{{ ord.order_number }}</strong></td>
+            <td>{{ ord.room_name }}</td>
+            <td><span class="badge {{ ord.priority|priority_badge }}">{{ ord.priority|priority_name }}</span></td>
+            <td style="max-width: 250px;"><small>{{ ord.items_summary }}</small></td>
+            <td>{{ ord.robot.display_name if ord.robot else '-' }}</td>
+            <td><span class="badge {{ ord.status|status_badge }}">{{ ord.status }}</span></td>
+            <td>{{ ord.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td>
+              {% if ord.status in ['PENDING', 'ACCEPTED', 'PREPARING', 'READY_FOR_LOADING', 'LOADED', 'READY_FOR_DISPATCH'] %}
+              <form method="POST" action="{{ url_for('admin.orders_management') }}"
+                    onsubmit="return confirm('Cancel Order {{ ord.order_number }}? Reserved stock will be released.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="cancel">
+                <input type="hidden" name="order_id" value="{{ ord.id }}">
+                <input type="hidden" name="reason" value="Cancelled by administrator">
+                <button type="submit" class="btn btn-danger btn-sm">Cancel</button>
+              </form>
+              {% else %}
+              <span style="font-size: 0.8rem; color: var(--text-light);">&mdash;</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No orders matched the filter criteria.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
