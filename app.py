@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
-from config import Config
+from config import Config, validate_required_config
 from models import db, User, Medicine, Robot, SystemSetting
 
 
@@ -10,6 +10,7 @@ csrf = CSRFProtect()
 
 
 def create_app(config_class=Config):
+    validate_required_config(config_class)
     app = Flask(__name__)
     app.config.from_object(config_class)
 

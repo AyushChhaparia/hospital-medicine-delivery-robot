@@ -21,7 +21,7 @@ def robot_auth_required(f):
         if token and token.startswith("Bearer "):
             token = token.split(" ", 1)[1]
 
-        expected_token = current_app.config.get("ROBOT_API_TOKEN", "esp32-hospital-robot-secure-token-2026")
+        expected_token = current_app.config["ROBOT_API_TOKEN"]
         if not token or token != expected_token:
             return jsonify({
                 "status": "error",

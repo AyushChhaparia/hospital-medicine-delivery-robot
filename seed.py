@@ -1,7 +1,17 @@
+import os
+import secrets
+
 from models import db, User, Medicine, Robot, SystemSetting
 from config import Config
 from app import create_app
 from services.audit_service import log_audit
+
+
+def demo_password(username):
+    environment_name = f"DEMO_{username.upper()}_PASSWORD"
+    password = os.environ.get(environment_name) or secrets.token_urlsafe(12)
+    print(f"Demo password for {username}: {password}")
+    return password
 
 
 def seed_all():
@@ -22,31 +32,31 @@ def seed_all():
     users_data = [
         {
             "username": "admin",
-            "password": "admin123",
+            "password": demo_password("admin"),
             "role": "admin",
             "room_name": "Hospital Administration",
         },
         {
             "username": "manager",
-            "password": "manager123",
+            "password": demo_password("manager"),
             "role": "medicine_manager",
             "room_name": "Central Medicine Room",
         },
         {
             "username": "emergency",
-            "password": "emergency123",
+            "password": demo_password("emergency"),
             "role": "emergency",
             "room_name": "Emergency Ward / OT",
         },
         {
             "username": "ward1",
-            "password": "ward123",
+            "password": demo_password("ward1"),
             "role": "general_1",
             "room_name": "General Ward 1",
         },
         {
             "username": "ward2",
-            "password": "ward123",
+            "password": demo_password("ward2"),
             "role": "general_2",
             "room_name": "General Ward 2",
         },

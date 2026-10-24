@@ -22,14 +22,9 @@
 #include <Adafruit_ILI9341.h>
 #include <MFRC522.h>
 #include <ESP32Servo.h>
+#include "secrets.h"
 
 /* ============================ NETWORK CONFIGURATION ============================ */
-const char* WIFI_SSID     = "YOUR_WIFI_SSID";          // Replace with your WiFi SSID
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";    // Replace with your WiFi Password
-
-// Backend Server URL (IP of the laptop running Flask app.py)
-const char* SERVER_BASE_URL = "10.69.99.144:5000";
-const char* ROBOT_TOKEN     = "YOUR_ROBOT_TOKEN";
 const char* ROBOT_CODE      = "R1";                   // Robot 1 for General Wards
 
 /* ============================ PIN ASSIGNMENTS ============================ */

@@ -11,7 +11,30 @@ __pycache__/
 
 # Local Environment Variables
 .env
+.env.*
+!.env.example
 
-# Editor settings
+# Local databases
+instance/*.db
+*.sqlite
+*.sqlite3
+
+# Firmware secrets and Arduino build output
+secrets.h
+build/
+*.bin
+*.elf
+*.hex
+*.eep
+*.map
+*.ino.d
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Editor settings and swap files
 .vscode/
 .idea/
+*.swp
+*.swo
