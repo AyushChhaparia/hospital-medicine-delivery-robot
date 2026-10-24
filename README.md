@@ -1,171 +1,188 @@
-# Hospital Autonomous Medicine Delivery & Dispatch Management System
+# Hospital Medicine Ordering and Robot Delivery System
 
-A production-grade, full-stack hospital medicine ordering and autonomous line-following robot delivery management system built with Python, Flask, Flask-SQLAlchemy, Flask-Login, SQLite, and vanilla responsive HTML5/CSS3/JavaScript.
+This repository contains a Flask web application for hospital medicine ordering,
+inventory management, dispatch coordination, and audit logging, together with
+two ESP32 firmware sketches for autonomous medicine-delivery robots.
 
-Designed for clinical wards to order life-critical medicines, an on-duty Medicine Room Manager to prepare and dispatch deliveries via a two-robot autonomous fleet (R1 and R2), and a hospital administrator to audit operations and configure hospital-wide priority rules.
+## Overview
 
----
+Ward staff create medicine orders. The medicine-room manager reviews orders,
+prepares and loads medicines, assigns a robot, secures the cargo box, and
+dispatches the delivery. The application reserves stock when an order is
+created and deducts physical stock only when dispatch is confirmed. The
+administrator manages users, medicines, robots, priorities, and audit records.
 
-## 1. System Architecture & Role Permissions
+The firmware polls the robot API, follows a line using two digital IR sensors,
+uses RFID waypoints and recipient cards, controls the cargo-box servo, and
+reports telemetry to the Flask application.
 
-The application supports five authenticated roles with strict server-enforced role-based access control (RBAC):
+## Architecture
 
-| Role Code | Title / Station | Scheduling Priority | Key Capabilities |
-| :--- | :--- | :--- | :--- |
-| `emergency` | Emergency Ward / Operation Theatre | **Priority 1 (Highest)** | Requisition emergency medicines, real-time stock availability, cart ordering, live robot tracking. |
-| `general_1` | General Ward 1 | **Priority 2** | Standard medicine requisition, track order status and robot assignment. Precedes Ward 2. |
-| `general_2` | General Ward 2 | **Priority 3** | Standard medicine requisition, track order status and robot assignment. Processed after Ward 1. |
-| `medicine_manager` | Central Medicine Room | Station Management | Manage queue, review/accept/reject orders, prepare medicines, assign robots, confirm cargo loading, **atomic dispatch & stock deduction**, receive incoming shipments. |
-| `admin` | Hospital Administration | System Superuser | Full user account management, medicine catalog, manual stock adjustment, robot registry, priority hierarchy configuration, immutable audit trail. |
-
----
-
-## 2. Technology Stack
-
-- **Backend**: Python 3.11, Flask 3.1, Flask-SQLAlchemy, Flask-Login, Flask-WTF (CSRF Protection), Werkzeug Password Hashing.
-- **Database**: SQLite with ACID transactions, atomic stock reservations, and foreign key constraints.
-- **Frontend**: Responsive HTML5, Modern Healthcare CSS, Vanilla JavaScript (Fetch API, dynamic in-memory cart, polling).
-- **Robotics Interface**: REST API with bearer token authentication (`X-Robot-Token`) designed for future ESP32 line-following robots.
-
----
-
-## 3. Quick Start & Execution Guide
-
-### Prerequisites
-- Python 3.10+ installed
-- Git (optional)
-
-### Setup & Launch Commands (PowerShell / Windows)
-
-```powershell
-# 1. Clone or navigate to the project directory
-cd "c:\Users\shubh\Desktop\Techh Buddies\2026-27\hospital medicine transport bot"
-
-# 2. Create Python virtual environment
-python -m venv .venv
-
-# 3. Activate virtual environment
-.\.venv\Scripts\Activate.ps1
-
-# 4. Install dependencies
-pip install -r requirements.txt
-
-# 5. Initialize database and seed demo data & accounts
-python seed.py
-
-# 6. Run the application
-python app.py
+```text
+Ward browser
+    |
+    v
+Flask routes and services  <-->  SQLite database
+    |
+    v
+Authenticated ESP32 robot API
+    |
+    +--> R1: General Ward 1 and General Ward 2
+    +--> R2: Emergency Ward / Operation Theatre
 ```
 
-Open your browser and navigate to:
-**`http://127.0.0.1:5000`**
+The application is organized as follows:
 
----
+| Path | Responsibility |
+| --- | --- |
+| `app.py`, `config.py` | Flask application factory and configuration |
+| `models.py` | SQLAlchemy models |
+| `routes/` | Authentication, ward, manager, administrator, and robot API routes |
+| `services/` | Inventory, order workflow, robot, scheduler, and audit logic |
+| `templates/`, `static/` | Server-rendered pages and browser assets |
+| `firmware/` | The two Arduino sketches and secret-header examples |
+| `tests/` | Pytest coverage for authentication, inventory, scheduling, robots, and audit/API behavior |
+| `docs/` | Detailed setup and firmware notes |
 
-## 4. Default Demo Accounts
+## Roles
 
-All demo accounts are pre-seeded via `seed.py`:
+| Role code | Station | Main capabilities |
+| --- | --- | --- |
+| `emergency` | Emergency Ward / Operation Theatre | Create and track priority-1 orders |
+| `general_1` | General Ward 1 | Create and track priority-2 orders |
+| `general_2` | General Ward 2 | Create and track priority-3 orders |
+| `medicine_manager` | Central Medicine Room | Review orders, prepare medicines, assign robots, dispatch, and receive returns |
+| `admin` | Hospital Administration | Manage users, medicines, robots, priorities, inventory adjustments, and audit records |
 
-| Role | Username | Password | Default Landing Interface |
-| :--- | :--- | :--- | :--- |
-| **Administrator** | `admin` | `admin123` | `/admin/overview` |
-| **Medicine Manager** | `manager` | `manager123` | `/manager` |
-| **Emergency Ward / OT** | `emergency` | `emergency123` | `/ward/emergency` |
-| **General Ward 1** | `ward1` | `ward123` | `/ward/general_1` |
-| **General Ward 2** | `ward2` | `ward123` | `/ward/general_2` |
+Priority is configured by the application and defaults to emergency, General
+Ward 1, then General Ward 2.
 
----
+## Technology stack
 
-## 5. Core Business Logic & Inventory Rules
+- Python 3.10 or newer
+- Flask, Flask-SQLAlchemy, Flask-Login, Flask-WTF, python-dotenv
+- SQLite
+- Vanilla HTML, CSS, and JavaScript
+- ESP32 Arduino firmware using WiFi, HTTPClient, ArduinoJson, ILI9341,
+  Adafruit GFX, MFRC522, and ESP32Servo libraries
 
-1. **Immediate Stock Reservation**:
-   $$\text{Available Stock} = \text{Physical Stock} - \text{Reserved Stock}$$
-   When a ward submits an order, required quantities are reserved immediately in a database transaction. If another ward attempts to order more than the remaining available stock, the order is rejected.
-2. **Atomic Dispatch & Inventory Deduction**:
-   When the Medicine Room Manager confirms that medicines are loaded into the assigned robot cargo box and clicks **Complete & Dispatch**:
-   - The order status transitions to `DISPATCHED`.
-   - Physical stock is deducted.
-   - Reserved stock is released.
-   - An immutable record is created in `inventory_transactions`.
-   - Repeated requests or double-clicks are rejected with clear error messages.
-3. **Pre-Dispatch Cancellation**:
-   If an order is rejected or cancelled before dispatch, the reserved quantity is safely restored to available stock without touching physical stock.
-4. **Deterministic Priority Queue**:
-   Queue sorting strictly follows:
-   1. `priority` (1: Emergency > 2: General Ward 1 > 3: General Ward 2)
-   2. `created_at` timestamp (FIFO)
-   3. `order_id` (deterministic tie-breaker)
+## Setup
 
----
+Detailed platform-specific instructions are in [`docs/setup.md`](docs/setup.md).
+The short version is:
 
-## 6. Two-Robot Management (R1 & R2)
+1. Create and activate a virtual environment.
+2. Install `requirements.txt`.
+3. Copy `.env.example` to `.env`.
+4. Set a real `SECRET_KEY` and `ROBOT_API_TOKEN` in `.env`.
+5. Run `python seed.py` to create the local database and generate demo
+   passwords.
+6. Run `python app.py` and open `http://127.0.0.1:5000`.
 
-The system manages two autonomous delivery robots:
-- `R1`: Primary Autonomous Delivery Robot
-- `R2`: Secondary Autonomous Delivery Robot
+`instance/*.db`, `.env`, and firmware `secrets.h` files are local-only and are
+ignored by Git. `seed.py` accepts `DEMO_ADMIN_PASSWORD`,
+`DEMO_MANAGER_PASSWORD`, `DEMO_EMERGENCY_PASSWORD`, `DEMO_WARD1_PASSWORD`,
+and `DEMO_WARD2_PASSWORD`; when a variable is absent, it generates a password
+at runtime and prints it once for that seed run.
 
-### States:
-- `AVAILABLE` &rarr; Robot docked in Medicine Room, ready for assignment.
-- `ASSIGNED` &rarr; Assigned to an accepted order.
-- `LOADING` &rarr; Medicines confirmed placed into cargo box.
-- `READY` &rarr; Cargo box secured and latched.
-- `DISPATCHED` &rarr; Order completed, departed station.
-- `DELIVERING` &rarr; En route along line track.
-- `AWAITING_RECIPIENT` &rarr; Arrived at destination ward, awaiting recipient PIN/RFID unlock.
-- `RETURNING` &rarr; Traveling back to Central Medicine Room.
-- `MAINTENANCE` &rarr; Offline for mechanical/battery servicing.
+## Firmware
 
-> **Safety Rule**: A robot cannot be assigned to another order until its return to the Medicine Room is verified.
+The Arduino folder rule is intentional: each sketch is in a folder with the
+same name as its `.ino` file.
 
----
+| Robot | Sketch | Service area |
+| --- | --- | --- |
+| R1 | `firmware/bot_general/bot_general.ino` | General Ward 1 and General Ward 2 |
+| R2 | `firmware/bot_emergency/bot_emergency.ino` | Emergency Ward / Operation Theatre |
 
-## 7. Future ESP32 / Hardware Integration APIs
+For each robot:
 
-The backend exposes authenticated REST endpoints for ESP32 microcontrollers. Firmware developers authenticate using the HTTP header:
-`X-Robot-Token: esp32-hospital-robot-secure-token-2026`
+1. Copy `secrets.h.example` to `secrets.h` in the same folder.
+2. Set the Wi-Fi SSID, Wi-Fi password, server URL, and robot token.
+3. Keep `SERVER_BASE_URL` in the form `http://host:port`.
+4. Install the required Arduino libraries and select an ESP32 board.
+5. Upload the sketch from its same-named folder.
 
-### Endpoints:
+Never commit `secrets.h`. See [`docs/firmware.md`](docs/firmware.md) for wiring,
+sensor behavior, and the firmware/API sequence.
 
-1. **Get Current Assignment & Manifest**:
-   - `GET /api/robot/<robot_code>/assignment`
-   - Returns destination ward, priority, order number, and list of medicines in the cargo box.
-2. **Heartbeat & Telemetry**:
-   - `POST /api/robot/<robot_code>/heartbeat`
-   - Payload: `{"status": "DELIVERING", "location": "Corridor A", "battery": 92}`
-3. **RFID Waypoint Checkpoint**:
-   - `POST /api/robot/<robot_code>/rfid_node`
-   - Payload: `{"node_id": "TAG-8821", "node_label": "Junction 3"}`
-4. **Destination Arrival**:
-   - `POST /api/robot/<robot_code>/arrived`
-   - Triggered when robot detects destination RFID tag; notifies ward staff.
-5. **Recipient Access & Box Closed**:
-   - `POST /api/robot/<robot_code>/box_closed_delivered`
-   - Triggered when ward staff unlocks cargo box, removes medication, and latches door.
-6. **Station Docking & Return Confirmation**:
-   - `POST /api/robot/<robot_code>/returned`
-   - Robot docks into Medicine Room charging pad; automatically resets status to `AVAILABLE`.
+## Robot API
 
----
+All robot endpoints are under `/api/robot/<robot_code>` and require the
+`X-Robot-Token` header. A `Bearer` prefix is also accepted by the server.
 
-## 8. Test Suite Verification
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/assignment` | Return the robot's current order and medicine manifest |
+| `POST` | `/heartbeat` | Record status, location, and battery telemetry |
+| `POST` | `/rfid_node` | Record an RFID waypoint |
+| `POST` | `/arrived` | Report arrival at the destination |
+| `POST` | `/box_closed_delivered` | Confirm recipient delivery and begin return |
+| `POST` | `/returned` | Confirm docking and reset the robot to available |
 
-Run the test suite with pytest:
+The current API returns an assignment whenever `current_order` exists. The
+dispatch and assignment behavior is listed as an open limitation below.
+
+## Order and robot states
+
+The application order workflow includes `PENDING`, `ACCEPTED`, `PREPARING`,
+`READY_FOR_LOADING`, `LOADED`, `READY_FOR_DISPATCH`, `DISPATCHED`,
+`IN_TRANSIT`, `AWAITING_RECIPIENT`, `DELIVERED`, `RETURNING`, `RETURNED`,
+`REJECTED`, and `CANCELLED`.
+
+Robots normally move through `AVAILABLE`, `ASSIGNED`, `LOADING`, `READY`,
+`DISPATCHED`, `DELIVERING`, `AWAITING_RECIPIENT`, and `RETURNING`.
+
+## Running tests
+
+From the repository root:
 
 ```powershell
-.\.venv\Scripts\pytest -v
+python -m pytest -q
 ```
 
-All 13 acceptance test scenarios (Tests A through M) are validated in `tests/`:
-- **Test A**: Authentication & Ward Role Isolation
-- **Test B**: Zero Stock Availability & Order Rejection
-- **Test C**: Concurrent Stock Reservation Limits
-- **Test D**: Priority Scheduling (Emergency > Ward 1 > Ward 2)
-- **Test E**: FIFO Tie-Breaking
-- **Test F**: Inactive/Busy Robot Assignment Rejection
-- **Test G**: Multi-step Dispatch Gate Verification
-- **Test H**: Exactly-Once Inventory Deduction on Dispatch
-- **Test I**: Idempotency & Duplicate Request Protection
-- **Test J**: Safe Reservation Release on Order Cancellation
-- **Test K**: Mandatory Return Confirmation Before Reassignment
-- **Test L**: Mobile Responsive Viewport & Controls
-- **Test M**: Security & Operational Audit Trail Logging
+```bash
+python -m pytest -q
+```
+
+The repository currently contains 14 collected pytest functions across the
+files in `tests/`. Do not rely on the historical “13 tests” or “14 scenarios”
+claims in the legacy documentation.
+
+## Known limitations and reconciliation notes
+
+The following discrepancies were found while comparing the legacy documents
+with the code. They are recorded here rather than silently choosing a
+behavior:
+
+| Source | Claim | Code or current documentation |
+| --- | --- | --- |
+| `README.md` and `docs/setup.md` | Demo passwords are fixed values | `seed.py` now reads `DEMO_*_PASSWORD` variables or generates passwords at runtime |
+| Legacy `README.md` | 13 acceptance scenarios | There are currently 14 collected pytest functions |
+| Legacy `docs/setup.md` | 14 tests | There are currently 14 collected pytest functions, but they are not the same A–N scenario list |
+| Legacy `docs/setup.md` | Ward URLs use `/room/<code>` | `routes/room_routes.py` registers `/ward/<ward_code>` |
+| Legacy `README.md` | Firmware sketches are future integration | The ESP32 API and sketches are present and implemented |
+| Legacy `docs/firmware.md` | Sketches and secrets are at the old root paths and values live in `.ino` files | Sketches are under `firmware/<bot>/`; settings belong in ignored `secrets.h` files |
+| Legacy firmware text | Eight-channel IR sensor | Both sketches read two digital inputs: GPIO 13 and GPIO 27 |
+| Legacy firmware sequence | Servo locks at 0 degrees | Both sketches use 45 degrees locked and 90 degrees open |
+| Legacy firmware sequence | Stock is deducted while the order is `READY_FOR_DISPATCH` | `services/order_service.py` deducts stock during the transition to `DISPATCHED` |
+| Legacy firmware sequence | The robot should depart for `READY_FOR_DISPATCH` | Both sketches currently treat `READY_FOR_DISPATCH` and `DISPATCHED` as assignment states; this is an open safety issue |
+
+## Open behavioral issues
+
+These are documented observations, not changes made in this preparation pass:
+
+- The assignment endpoint uses `robot.current_order`, and the firmware accepts
+  `READY_FOR_DISPATCH` before dispatch. This can allow departure before the
+  manager's dispatch action.
+- Robot assignment does not currently enforce that R1 receives only general
+  ward orders or R2 only emergency orders.
+- The selected motor pins include UART0 pins and a boot-strapping pin.
+- Firmware battery values are constants, and some heartbeat states are
+  reported as `AVAILABLE`.
+- A `has_assignment: false` poll does not reset the local firmware state after
+  cancellation.
+
+## License
+
+No license has been selected for this repository yet.
